@@ -69,17 +69,17 @@ chmod +x validate_chain.sh
 チェーンが正常にルート証明書または自己署名証明書まで辿れた場合は、各階層の主体者DN・有効期限・一致状況と `[SUCCESS]` が表示されます。
 
 ```text
-Connecting to certs.nii.ac.jp:443 (ServerName: certs.nii.ac.jp) ...
-Certificate chain:
-  Depth 0 Subject: C=JP, ST=Tokyo, L=Chiyoda-ku, O=National Institute of Informatics, CN=certs.nii.ac.jp
-  Depth 1 Subject: C=JP, O=SECOM Trust Systems CO.,LTD., CN=NII Open Domain CA - G7 RSA
-  Depth 2 Subject: C=JP, O=SECOM Trust Systems CO.,LTD., OU=Security Communication RootCA2 (ローカル証明書ストアのルート証明書)
-Certificate expiration:
-  Depth 0 notAfter: Aug 15 04:23:23 2026 GMT [OK]
-  Depth 1 notAfter: May 29 05:00:39 2029 GMT [OK]
-[OK] Depth 0 Issuer matches Depth 1 Subject.
-[OK] Depth 1 Issuer matches Depth 2 Subject.
-[SUCCESS] Certificate chain is perfectly linked from End-Entity to Root (Total Depth: 2).
+接続中: certs.nii.ac.jp:443 (ServerName: certs.nii.ac.jp) ...
+証明書チェーン:
+  Depth 0 主体者DN: C=JP, ST=Tokyo, L=Chiyoda-ku, O=National Institute of Informatics, CN=certs.nii.ac.jp
+  Depth 1 主体者DN: C=JP, O=SECOM Trust Systems CO.,LTD., CN=NII Open Domain CA - G7 RSA
+  Depth 2 主体者DN: C=JP, O=SECOM Trust Systems CO.,LTD., OU=Security Communication RootCA2 (ローカル証明書ストアのルート証明書)
+証明書の有効期限:
+  Depth 0 有効期限(notAfter): Aug 15 04:23:23 2026 GMT [OK]
+  Depth 1 有効期限(notAfter): May 29 05:00:39 2029 GMT [OK]
+[OK] Depth 0 の発行者DNと Depth 1 の主体者DNが一致しました。
+[OK] Depth 1 の発行者DNと Depth 2 の主体者DNが一致しました。
+[SUCCESS] 証明書チェーンはエンド証明書からルート証明書まで正しく繋がっています。（最大Depth: 2）
 ```
 
 最上位のルート証明書は、サーバーから送信されず検証マシンの証明書ストアにあるのが正常な構成のため、`(ローカル証明書ストアのルート証明書)` と注記されます。
@@ -89,7 +89,7 @@ Certificate expiration:
 サーバー側の設定ミス（中間証明書のインストール漏れなど）によりチェーンが途切れている場合、以下のようなどこで途切れたかの情報と共にエラーが表示されます。
 
 ```text
-Connecting to www.example.com:443 (ServerName: www.example.com) ...
+接続中: www.example.com:443 (ServerName: www.example.com) ...
 [ERROR] 証明書の信頼チェーン検証に失敗しました。（ルートまで辿れません）
 詳細: unable to get local issuer certificate (エラーコード: 20)
 原因: サーバー側に中間証明書が正しくインストールされていないか、必要なクロスルート証明書が不足しているため、チェーンが途切れています。
@@ -100,7 +100,7 @@ Connecting to www.example.com:443 (ServerName: www.example.com) ...
 証明書の SAN/CN が指定したサーバー名と一致しない場合は、以下のようなエラーが表示されます。
 
 ```text
-Connecting to www.example.com:443 (ServerName: www.example.com) ...
+接続中: www.example.com:443 (ServerName: www.example.com) ...
 [ERROR] 証明書のホスト名検証に失敗しました。（SAN/CN の不一致）
 詳細: hostname mismatch (エラーコード: 62)
 原因: 証明書の SAN/CN が、指定したサーバー名（www.example.com）と一致していません。証明書の発行対象（コモンネーム / サブジェクト代替名）を確認してください。
@@ -111,7 +111,7 @@ Connecting to www.example.com:443 (ServerName: www.example.com) ...
 チェーン内の証明書の有効期限が切れている場合は、以下のようなエラーが表示されます。
 
 ```text
-Connecting to www.example.com:443 (ServerName: www.example.com) ...
+接続中: www.example.com:443 (ServerName: www.example.com) ...
 [ERROR] 証明書の有効期限検証に失敗しました。（期限切れ）
 詳細: certificate has expired (エラーコード: 10)
 原因: チェーン内の証明書の有効期限が切れています。証明書を更新してください。
@@ -124,9 +124,9 @@ Connecting to www.example.com:443 (ServerName: www.example.com) ...
 サーバーが中間証明書を送信しておらず、検証マシンのローカル証明書ストアによってチェーンが補完された場合は、以下のような警告が表示されます。この状態は、手元の検証では成功しても、初回アクセスのブラウザや他のクライアントでは検証エラーになる恐れがあります。
 
 ```text
-Certificate chain:
-  Depth 0 Subject: CN=www.example.com
-  Depth 1 Subject: C=US, O=Example CA, CN=Example Intermediate CA [WARN] サーバー未送信（ローカル証明書ストアで補完）
+証明書チェーン:
+  Depth 0 主体者DN: CN=www.example.com
+  Depth 1 主体者DN: C=US, O=Example CA, CN=Example Intermediate CA [WARN] サーバー未送信（ローカル証明書ストアで補完）
   ...
 [WARN] チェーンの一部がローカルの証明書ストアで補完されています。サーバーが中間証明書を送信していない可能性が高く、この環境では検証に成功しても、初回アクセスのブラウザや他のクライアントでは検証エラーになる恐れがあります。
 ```

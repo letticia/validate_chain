@@ -58,7 +58,7 @@ elif command -v gtimeout >/dev/null 2>&1; then
     TIMEOUT_CMD=(gtimeout "$CONNECT_TIMEOUT")
 fi
 
-echo "Connecting to ${HOST_PORT} (ServerName: ${SERVERNAME}) ..."
+echo "接続中: ${HOST_PORT} (ServerName: ${SERVERNAME}) ..."
 
 # openssl s_client 実行結果の取得
 OUTPUT=$(echo -n | "${TIMEOUT_CMD[@]}" openssl s_client -connect "${HOST_PORT}" -servername "${SERVERNAME}" "${VERIFY_OPTS[@]}" -showcerts 2>&1)
@@ -172,7 +172,7 @@ done < <(echo "$OUTPUT" | awk '
 # 最上位（ルート証明書）がストア由来なのは正常な構成だが、中間証明書が
 # ストア補完されている場合は、サーバーの設定漏れの可能性が高いため警告する。
 STORE_FALLBACK=0
-echo "Certificate chain:"
+echo "証明書チェーン:"
 for (( d=0; d<=MAX_DEPTH; d++ )); do
     subject="${SUBJECTS[$d]}"
     note=""
@@ -187,7 +187,7 @@ for (( d=0; d<=MAX_DEPTH; d++ )); do
             fi
         fi
     fi
-    echo "  Depth $d Subject: ${subject:-<NotFound>}${note}"
+    echo "  Depth $d 主体者DN: ${subject:-<取得不可>}${note}"
 done
 
 if [ $STORE_FALLBACK -eq 1 ]; then
@@ -200,7 +200,7 @@ EXPIRY_FAIL=0
 cert=""
 in_cert=0
 cert_idx=0
-echo "Certificate expiration:"
+echo "証明書の有効期限:"
 while IFS= read -r line; do
     if [[ "$line" == "-----BEGIN CERTIFICATE-----" ]]; then
         in_cert=1
@@ -211,12 +211,12 @@ while IFS= read -r line; do
         enddate=$(echo "$cert" | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2)
         if echo "$cert" | openssl x509 -noout -checkend 0 >/dev/null 2>&1; then
             if echo "$cert" | openssl x509 -noout -checkend "$EXPIRY_WARN_SECONDS" >/dev/null 2>&1; then
-                echo "  Depth $cert_idx notAfter: ${enddate:-<Unknown>} [OK]"
+                echo "  Depth $cert_idx 有効期限(notAfter): ${enddate:-<取得不可>} [OK]"
             else
-                echo "  Depth $cert_idx notAfter: ${enddate:-<Unknown>} [WARN] 30日以内に有効期限が切れます。"
+                echo "  Depth $cert_idx 有効期限(notAfter): ${enddate:-<取得不可>} [WARN] 30日以内に有効期限が切れます。"
             fi
         else
-            echo "  Depth $cert_idx notAfter: ${enddate:-<Unknown>} [ERROR] 有効期限切れ" >&2
+            echo "  Depth $cert_idx 有効期限(notAfter): ${enddate:-<取得不可>} [ERROR] 有効期限切れ" >&2
             EXPIRY_FAIL=1
         fi
         cert_idx=$((cert_idx + 1))
@@ -242,22 +242,22 @@ for (( d=0; d<MAX_DEPTH; d++ )); do
 
     # 情報が取得できなかった場合
     if [ -z "$issuer" ] || [ -z "$subject" ]; then
-        echo "[ERROR] 証明書の信頼チェーン検証に失敗しました。（Chain broken at Depth $d）" >&2
+        echo "[ERROR] 証明書の信頼チェーン検証に失敗しました。（Depth $d でチェーン切れ）" >&2
         echo "詳細: Depth $d と Depth $next_d を繋ぐ証明書情報が見つかりません。" >&2
-        echo "  - Depth $d Issuer: ${issuer:-<NotFound>}" >&2
-        echo "  - Depth $next_d Subject: ${subject:-<NotFound>}" >&2
+        echo "  - Depth $d 発行者DN(Issuer): ${issuer:-<取得不可>}" >&2
+        echo "  - Depth $next_d 主体者DN(Subject): ${subject:-<取得不可>}" >&2
         echo "原因: サーバー側に中間証明書が正しくインストールされていないか、必要なクロスルート証明書が不足しているため、チェーンが途切れています。" >&2
         exit 1
     fi
 
     # i: と s: が完全一致するか確認
     if [ "$issuer" = "$subject" ]; then
-        echo "[OK] Depth $d Issuer matches Depth $next_d Subject."
+        echo "[OK] Depth $d の発行者DNと Depth $next_d の主体者DNが一致しました。"
     else
-        echo "[ERROR] 証明書の信頼チェーン検証に失敗しました。（Chain broken at Depth $d）" >&2
-        echo "詳細: Issuer と Subject の不一致が検出されました。" >&2
-        echo "  - Depth $d Issuer: $issuer" >&2
-        echo "  - Depth $next_d Subject: $subject" >&2
+        echo "[ERROR] 証明書の信頼チェーン検証に失敗しました。（Depth $d でチェーン切れ）" >&2
+        echo "詳細: 発行者DN(Issuer) と主体者DN(Subject) の不一致が検出されました。" >&2
+        echo "  - Depth $d 発行者DN(Issuer): $issuer" >&2
+        echo "  - Depth $next_d 主体者DN(Subject): $subject" >&2
         echo "原因: サーバー側に中間証明書が正しくインストールされていないか、必要なクロスルート証明書が不足しているため、チェーンが途切れています。" >&2
         exit 1
     fi
@@ -268,5 +268,5 @@ if [ $EXPIRY_FAIL -eq 1 ]; then
     exit 1
 fi
 
-echo "[SUCCESS] Certificate chain is perfectly linked from End-Entity to Root (Total Depth: ${MAX_DEPTH})."
+echo "[SUCCESS] 証明書チェーンはエンド証明書からルート証明書まで正しく繋がっています。（最大Depth: ${MAX_DEPTH}）"
 exit 0
