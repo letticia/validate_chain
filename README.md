@@ -5,7 +5,11 @@
 ## 特徴
 
 - **動的なチェーン追跡**: サーバーから返される証明書の階層数（Depth）を動的に判定し、最上位まで途切れなく `Issuer`（発行者）と `Subject`（所有者）が一致するかを検証します。
-- **直感的なエラーメッセージ**: チェーン切れ（設定漏れ）などが検知された場合、原因や解決策のヒントを日本語で分かりやすく出力します。
+- **主体者DNの表示**: 各 Depth の証明書の主体者DN（Subject DN）を一覧表示し、チェーンの構成を一目で確認できます。
+- **ホスト名（SAN/CN）の検証**: 証明書の発行対象が指定したサーバー名と一致するかを検証します（ブラウザの `ERR_CERT_COMMON_NAME_INVALID` 相当のエラーを事前に検知できます）。
+- **有効期限のチェック**: チェーン内の各証明書の有効期限（`notAfter`）を表示し、期限切れはエラー、30日以内の失効は警告として通知します。中間証明書の期限切れも検知できます。
+- **ローカルストア補完の警告**: サーバーが中間証明書を送信しておらず、検証マシンのローカル証明書ストアで補完された場合に警告します（手元では成功してもブラウザ等ではエラーになるケースの検知）。
+- **直感的なエラーメッセージ**: チェーン切れ（設定漏れ）、ホスト名不一致、期限切れなど、エラーの種類に応じた原因や解決策のヒントを日本語で分かりやすく出力します。
 - **スマートな引数補完**: FQDN（ドメイン名）を1つ指定するだけで、ポート番号やサーバー名を自動で補完して検証を実行します。
 - **外部依存なし**: `openssl`, `awk`, `grep` など、標準的なコマンド群のみで動作します。
 
@@ -14,6 +18,11 @@
 - `bash`
 - `openssl` (`s_client` コマンドを使用)
 - 標準のテキスト処理ツール (`awk`, `grep`, `cut` など)
+
+> **補足**:
+> - ホスト名検証には `-verify_hostname` オプションに対応した openssl が必要です。未対応の環境（古い openssl や一部の LibreSSL）では、警告を表示した上でホスト名検証のみスキップされます。
+> - `timeout`（または `gtimeout`）コマンドが存在する環境では、接続に15秒のタイムアウトが適用されます。無い環境でもそのまま動作します。
+> - チェーン検証の結果は検証マシンのローカル証明書ストアの内容に依存します。ブラウザは独自の信頼ストアや AIA フェッチ（欠落中間証明書の自動取得）を持つため、挙動が完全に一致するとは限りません。
 
 ## 使い方 (Usage)
 
@@ -57,14 +66,23 @@ chmod +x validate_chain.sh
 
 ### 成功時の出力例
 
-チェーンが正常にルート証明書または自己署名証明書まで辿れた場合は、各階層の一致状況と `[SUCCESS]` が表示されます。
+チェーンが正常にルート証明書または自己署名証明書まで辿れた場合は、各階層の主体者DN・有効期限・一致状況と `[SUCCESS]` が表示されます。
 
 ```text
 Connecting to certs.nii.ac.jp:443 (ServerName: certs.nii.ac.jp) ...
+Certificate chain:
+  Depth 0 Subject: C=JP, ST=Tokyo, L=Chiyoda-ku, O=National Institute of Informatics, CN=certs.nii.ac.jp
+  Depth 1 Subject: C=JP, O=SECOM Trust Systems CO.,LTD., CN=NII Open Domain CA - G7 RSA
+  Depth 2 Subject: C=JP, O=SECOM Trust Systems CO.,LTD., OU=Security Communication RootCA2 (ローカル証明書ストアのルート証明書)
+Certificate expiration:
+  Depth 0 notAfter: Aug 15 04:23:23 2026 GMT [OK]
+  Depth 1 notAfter: May 29 05:00:39 2029 GMT [OK]
 [OK] Depth 0 Issuer matches Depth 1 Subject.
 [OK] Depth 1 Issuer matches Depth 2 Subject.
 [SUCCESS] Certificate chain is perfectly linked from End-Entity to Root (Total Depth: 2).
 ```
+
+最上位のルート証明書は、サーバーから送信されず検証マシンの証明書ストアにあるのが正常な構成のため、`(ローカル証明書ストアのルート証明書)` と注記されます。
 
 ### 失敗時の出力例（チェーン切れの場合）
 
@@ -75,6 +93,42 @@ Connecting to www.example.com:443 (ServerName: www.example.com) ...
 [ERROR] 証明書の信頼チェーン検証に失敗しました。（ルートまで辿れません）
 詳細: unable to get local issuer certificate (エラーコード: 20)
 原因: サーバー側に中間証明書が正しくインストールされていないか、必要なクロスルート証明書が不足しているため、チェーンが途切れています。
+```
+
+### 失敗時の出力例（ホスト名不一致の場合）
+
+証明書の SAN/CN が指定したサーバー名と一致しない場合は、以下のようなエラーが表示されます。
+
+```text
+Connecting to www.example.com:443 (ServerName: www.example.com) ...
+[ERROR] 証明書のホスト名検証に失敗しました。（SAN/CN の不一致）
+詳細: hostname mismatch (エラーコード: 62)
+原因: 証明書の SAN/CN が、指定したサーバー名（www.example.com）と一致していません。証明書の発行対象（コモンネーム / サブジェクト代替名）を確認してください。
+```
+
+### 失敗時の出力例（有効期限切れの場合）
+
+チェーン内の証明書の有効期限が切れている場合は、以下のようなエラーが表示されます。
+
+```text
+Connecting to www.example.com:443 (ServerName: www.example.com) ...
+[ERROR] 証明書の有効期限検証に失敗しました。（期限切れ）
+詳細: certificate has expired (エラーコード: 10)
+原因: チェーン内の証明書の有効期限が切れています。証明書を更新してください。
+```
+
+また、有効期限が30日以内に迫っている証明書がある場合は、検証は成功しつつ `Certificate expiration:` セクションに `[WARN]` が表示されます。
+
+### 警告の出力例（中間証明書がローカルストアで補完された場合）
+
+サーバーが中間証明書を送信しておらず、検証マシンのローカル証明書ストアによってチェーンが補完された場合は、以下のような警告が表示されます。この状態は、手元の検証では成功しても、初回アクセスのブラウザや他のクライアントでは検証エラーになる恐れがあります。
+
+```text
+Certificate chain:
+  Depth 0 Subject: CN=www.example.com
+  Depth 1 Subject: C=US, O=Example CA, CN=Example Intermediate CA [WARN] サーバー未送信（ローカル証明書ストアで補完）
+  ...
+[WARN] チェーンの一部がローカルの証明書ストアで補完されています。サーバーが中間証明書を送信していない可能性が高く、この環境では検証に成功しても、初回アクセスのブラウザや他のクライアントでは検証エラーになる恐れがあります。
 ```
 
 > **解決のヒント**: このエラーが出た場合、検証対象のウェブサーバー（Apache, Nginxなど）において、「サーバー証明書」単体だけでなく、「中間CA証明書」「クロスルート証明書」も含んだ正しい順序で設定・結合されているかを確認してください。
